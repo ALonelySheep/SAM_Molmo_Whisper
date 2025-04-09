@@ -14,26 +14,22 @@ from utils.general import (
     save_video,
 )
 from utils.model_utils import (
-    get_whisper_output, get_molmo_output, get_sam_output, get_spacy_output
+    get_molmo_output, get_sam_output, get_spacy_output
 )
 from utils.load_models import (
-    load_molmo, load_sam, load_whisper, load_sam_video, load_siglip, load_spacy
+    load_molmo, load_sam, load_sam_video, load_siglip, load_spacy
 )
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 molmo_model_name = None
 sam_model_name = None
-whisper_model_name = None
 processor, molmo_model = None, None
 sam_predictor = None
-transcriber = None
 
 def process_image(
     image_path, 
-    prompt, 
-    audio,
-    whisper_tag,
+    prompt,
     molmo_tag,
     sam_tag,
     clip_label,
@@ -48,25 +44,20 @@ def process_image(
 
     :param image: PIL image.
     :param prompt: User prompt.
-    :param audio: The audio command from user.
     :param molmo_tag: Molmo Hugging Face model tag.
     :param sam_tag: SAM Hugging Face model tag.
-    :param Whisper_tag: Whisper Hugging Face model tag.
     :param clip_label: Whether to enable auto labeling using CLIP.
 
     Returns:
         fig: Final segmentation map.
         prompt: Prompt from the Molmo model.
-        transcribed_test: The Whisper transcribed text.
     """
 
     global molmo_model_name
     global sam_model_name
-    global whisper_model_name
     global processor
     global molmo_model
     global sam_predictor
-    global transcriber
     global clicked_points
 
     coords = []
@@ -85,17 +76,6 @@ def process_image(
             sam_predictor = load_sam(model_name=sam_tag)
             sam_model_name = sam_tag
 
-    if audio is not None: # Load Whisper only if audio prompt is present.
-        if whisper_tag != whisper_model_name:
-            gr.Info(message=f"Loading {whisper_tag}", duration=20)
-            transcriber = load_whisper(model_name=whisper_tag, device='cpu')
-            whisper_model_name = whisper_tag
-
-    transcribed_text = ''
-
-    if len(prompt) == 0:
-        transcribed_text, prompt = get_whisper_output(audio, transcriber)
-
     print(prompt)
 
     # Get coordinates from the model output.
@@ -111,7 +91,7 @@ def process_image(
     if type(molmo_output) == str and len(clicked_points) == 0: # If we get image caption instead of points.
         # Clear mouse click prompts after one successful run.
         clicked_points = []
-        return  plot_image(image), output, transcribed_text
+        return plot_image(image), output
     
      # There is a chance the user clicks points and Molmo outputs string. In
      # that case, we do not want to append the Molmo string output to `coords`
@@ -200,9 +180,9 @@ def process_image(
 
         # Clear mouse click prompts after one successful run.
         clicked_points = []
-        return fig, output, transcribed_text
+        return fig, output
     
-    if not chat_only and  sequential_processing: # If sequential processing of points is enabled without CLIP.
+    if not chat_only and sequential_processing: # If sequential processing of points is enabled without CLIP.
         final_mask = np.zeros_like(image.transpose(2, 0, 1), dtype=np.float32)
 
         # This probably takes as many times longer as the number of objects
@@ -244,7 +224,7 @@ def process_image(
         
         # Clear mouse click prompts after one successful run.
         clicked_points = []
-        return fig, output, transcribed_text
+        return fig, output
     
     else:
         masks, scores, logits, sorted_ind = None, None, None, None
@@ -267,13 +247,11 @@ def process_image(
         
         # Clear mouse click prompts after one successful run.
         clicked_points = []
-        return fig, output, transcribed_text
+        return fig, output
 
 def process_video(
     video, 
-    prompt, 
-    audio,
-    whisper_tag,
+    prompt,
     molmo_tag,
     sam_tag
 ):
@@ -283,24 +261,19 @@ def process_video(
 
     :param video: A .avi or .mp4 video.
     :param prompt: User prompt.
-    :param audio: The audio command from user.
     :param molmo_tag: Molmo Hugging Face model tag.
     :param sam_tag: SAM Hugging Face model tag.
-    :param Whisper_tag: Whisper Hugging Face model tag.
 
     Returns:
         fig: Final segmentation map.
         prompt: Prompt from the Molmo model.
-        transcribed_test: The Whisper transcribed text.
     """
 
     global molmo_model_name
     global sam_model_name
-    global whisper_model_name
     global processor
     global molmo_model
     global sam_predictor
-    global transcriber
 
     coords = []
 
@@ -309,21 +282,9 @@ def process_video(
     extract_video_frame(video=video, path=temp_dir)
 
     # Check if user chose different model, and load appropriately.
-    # Fow now, load the Molmo model every time as we are deleting it later on.
-    # if molmo_tag != molmo_model_name:
     gr.Info(message=f"Loading {molmo_tag}", duration=20)
     processor, molmo_model = load_molmo(model_name=molmo_tag, device=device)
     molmo_model_name = molmo_tag
-
-    if whisper_tag != whisper_model_name:
-        gr.Info(message=f"Loading {whisper_tag}", duration=20)
-        transcriber = load_whisper(model_name=whisper_tag, device='cpu')
-        whisper_model_name = whisper_tag
-
-    transcribed_text = ''
-
-    if len(prompt) == 0:
-        transcribed_text, prompt = get_whisper_output(audio, transcriber)
 
     # Get the first frame from the extracted videos.
     image = Image.open('temp/00000.jpg')
@@ -359,7 +320,7 @@ def process_video(
     coords.extend(molmo_output)
 
     if type(coords) == str: # If we get image caption instead of points.
-        return  plot_image(image), output, transcribed_text
+        return plot_image(image), output
     
     # Prepare input for SAM
     input_points = np.array(coords)
@@ -406,7 +367,7 @@ def process_video(
     w, h = image.size
     save_video(output_dir, w, h, temp_dir, frame_names, video_segments)
     
-    return os.path.join(output_dir, 'molmo_points_output.webm'), output, transcribed_text
+    return os.path.join(output_dir, 'molmo_points_output.webm'), output
 
 # Global list to store clicked points
 clicked_points = []
@@ -439,17 +400,15 @@ def get_click_coords(img, evt: gr.SelectData):
 
 
 with gr.Blocks(
-    title='Image Segmentation with SAM2, Molmo, and Whisper'
+    title='Image Segmentation with SAM2 and Molmo'
 ) as image_interface:
     # Inputs.
     img_input = gr.Image(type='filepath', label='Upload Image')
     txt_input = gr.Textbox(label='Prompt', placeholder='e.g., Point where the dog is.')
-    audio_input = gr.Audio(sources=['microphone'])
     
     # Outputs.
     img_plt_out = gr.Plot(label='Segmentation Result', format='png')
     molmo_out = gr.Textbox(label='Molmo Output')
-    whisper_out = gr.Textbox(label='Whisper Output')
 
     with gr.Row():
         with gr.Column():
@@ -458,19 +417,6 @@ with gr.Blocks(
     img_input.select(get_click_coords, [img_input], [pointed_image])
     
     # Additional inputs.
-    whisper_models = gr.Dropdown(
-        label='Whisper Models',
-        choices=(
-            'openai/whisper-tiny',
-            'openai/whisper-base',
-            'openai/whisper-small',
-            'openai/whisper-medium',
-            'openai/whisper-large-v3',
-            'openai/whisper-large-v3-turbo',
-        ),
-        value='openai/whisper-small'
-    )
-
     molmo_models = gr.Dropdown(
         label='Molmo Models',
         choices=(
@@ -530,13 +476,12 @@ with gr.Blocks(
     gr.Interface(
         fn=process_image,
         inputs=[
-            img_input, txt_input, audio_input
+            img_input, txt_input
         ],
         outputs=[
-            img_plt_out, molmo_out, whisper_out
+            img_plt_out, molmo_out
         ],
         additional_inputs=[
-            whisper_models,
             molmo_models,
             sam_models,
             clip_checkbox,
@@ -545,37 +490,21 @@ with gr.Blocks(
             rnd_col_mask_checkbox,
             chat_only_checkbox
         ],
-        description=f"Upload an image and provide a prompt to segment specific objects in the image. \
-                    Text box input takes precedence. Text box needs to be empty to prompt via voice."
+        description=f"Upload an image and provide a prompt to segment specific objects in the image."
     )
 
 with gr.Blocks(
-    title='Video Segmentation with SAM2, Molmo, and Whisper'
+    title='Video Segmentation with SAM2 and Molmo'
 ) as video_interface:
     # Inputs.
-    vid_input = gr.Video(label='Upload Image')
+    vid_input = gr.Video(label='Upload Video')
     txt_input = gr.Textbox(label='Prompt', placeholder='e.g., Point where the dog is.')
-    audio_input = gr.Audio(sources=['microphone'])
 
     # Outputs.
     vid_out = gr.Video(label='Segmentation Result', format='webm')
     molmo_out = gr.Textbox(label='Molmo Output')
-    whisper_out = gr.Textbox(label='Whisper Output')
     
     # Additional inputs.
-    whisper_models = gr.Dropdown(
-        label='Whisper Models',
-        choices=(
-            'openai/whisper-tiny',
-            'openai/whisper-base',
-            'openai/whisper-small',
-            'openai/whisper-medium',
-            'openai/whisper-large-v3',
-            'openai/whisper-large-v3-turbo',
-        ),
-        value='openai/whisper-small'
-    )
-
     molmo_models = gr.Dropdown(
         label='Molmo Models',
         choices=(
@@ -601,18 +530,16 @@ with gr.Blocks(
     gr.Interface(
         fn=process_video,
         inputs=[
-            vid_input, txt_input, audio_input
+            vid_input, txt_input
         ],
         outputs=[
-            vid_out, molmo_out, whisper_out
+            vid_out, molmo_out
         ],
         additional_inputs=[
-            whisper_models,
             molmo_models,
             sam_models
         ],
-        description=f"Upload a video and provide a prompt to segment specific objects in the video. \
-                    Text box input takes precedence. Text box needs to be empty to prompt via voice."
+        description=f"Upload a video and provide a prompt to segment specific objects in the video."
     )
 
 if __name__ == '__main__':
@@ -635,18 +562,5 @@ if __name__ == '__main__':
         
         with gr.Tab('Video Processing'):
             video_interface.render()
-
-    # iface = gr.TabbedInterface(
-    #     [
-    #         image_interface, 
-    #         video_interface,
-    #         demo
-    #     ],
-    #     tab_names=[
-    #         'Image processing',
-    #         'Video processing',
-    #         'Point processor'
-    #     ]
-    # )
     
     iface.launch(share=True)
