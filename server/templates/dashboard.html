@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VLM Server Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background-color: #333;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 0;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+        }
+
+        .status-light {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #0f0;
+            margin-right: 8px;
+        }
+
+        .request-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .request-card {
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            transition: transform 0.2s;
+        }
+
+        .request-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-header {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .card-id {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .card-time {
+            color: #777;
+            font-size: 0.9em;
+        }
+
+        .card-content img {
+            max-width: 100%;
+            border-radius: 3px;
+            margin: 10px 0;
+        }
+
+        .card-prompt {
+            background-color: #f0f0f0;
+            padding: 8px;
+            border-radius: 3px;
+            margin-bottom: 10px;
+            font-style: italic;
+        }
+
+        .card-response {
+            padding: 8px;
+            border-left: 3px solid #2196F3;
+            background-color: #e3f2fd;
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            color: #777;
+            font-size: 0.9em;
+        }
+
+        .status-completed {
+            color: #4caf50;
+        }
+
+        .status-error {
+            color: #f44336;
+        }
+
+        .error-message {
+            color: #f44336;
+            background-color: #ffebee;
+            padding: 8px;
+            border-radius: 3px;
+        }
+
+        .refresh-button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #777;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>VLM Server Dashboard</h1>
+            <div class="status">
+                <div class="status-light" id="status-indicator"></div>
+                <span id="status-text">Connected</span>
+                <button class="refresh-button" onclick="fetchData()">Refresh</button>
+            </div>
+        </header>
+
+        <div id="requests-container" class="request-list">
+            <div class="empty-state">Waiting for requests...</div>
+        </div>
+    </div>
+
+    <script>
+        // Fetch data from the server
+        function fetchData() {
+            fetch('/data')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    document.getElementById('status-indicator').style.backgroundColor = '#0f0';
+                    document.getElementById('status-text').textContent = 'Connected';
+                    return response.json();
+                })
+                .then(data => {
+                    updateDashboard(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                    document.getElementById('status-indicator').style.backgroundColor = '#f00';
+                    document.getElementById('status-text').textContent = 'Disconnected';
+                });
+        }
+
+        // Update the dashboard with new data
+        function updateDashboard(requests) {
+            const container = document.getElementById('requests-container');
+
+            if (requests.length === 0) {
+                container.innerHTML = '<div class="empty-state">No requests yet</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+
+            // Sort requests by timestamp (newest first)
+            requests.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            // Create cards for each request
+            requests.forEach(request => {
+                const card = document.createElement('div');
+                card.className = 'request-card';
+
+                const statusClass = request.status === 'completed' ? 'status-completed' : 'status-error';
+
+                let responseHtml = '';
+                if (request.status === 'completed') {
+                    responseHtml = `
+                        <div class="card-response">
+                            ${request.result.response_text}
+                            <div class="card-footer">
+                                <span>Confidence: ${request.result.confidence}</span>
+                                <span>Processing time: ${request.result.processing_time}s</span>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    responseHtml = `
+                        <div class="error-message">
+                            Error: ${request.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+
+                let imageHtml = '';
+                if (request.image_path) {
+                    imageHtml = `<img src="/uploads/${request.image_path}" alt="Uploaded image">`;
+                }
+
+                card.innerHTML = `
+                    <div class="card-header">
+                        <span class="card-id">Request ID: ${request.id}</span>
+                        <span class="card-time">${request.timestamp}</span>
+                    </div>
+                    <div class="card-content">
+                        <div class="card-prompt">${request.prompt}</div>
+                        ${imageHtml}
+                        ${responseHtml}
+                    </div>
+                    <div class="card-footer">
+                        <span class="${statusClass}">Status: ${request.status}</span>
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        // Initial fetch
+        fetchData();
+
+        // Auto refresh every 3 seconds
+        setInterval(fetchData, 3000);
+    </script>
+</body>
+
+</html>
