@@ -63,35 +63,6 @@ def get_sam_output(image, model, input_points, input_labels):
 
     return masks, scores, logits, sorted_ind
 
-def get_whisper_output(audio, model):
-    """
-    Function to get audio transcription from Whisper.
-
-    :param audio: Audio file or recorded audio from Gradio microphone input.
-
-    Returns:
-        transcripted_text: The transcripted text from Whisper.
-        prompt: The updated prompt.
-    """
-    prompt, transcribed_text = '', ''
-
-    try:
-        sr, y = audio
-    except:
-        return transcribed_text, prompt
-    
-    # Convert to mono if stereo
-    if y.ndim > 1:
-        y = y.mean(axis=1)
-
-    y = y.astype(np.float32)
-    y /= np.max(np.abs(y))
-
-    transcribed_text = model({'sampling_rate': sr, 'raw': y})['text'] 
-    prompt = transcribed_text
-
-    return transcribed_text, prompt
-
 
 def get_spacy_output(outputs, model):
     """

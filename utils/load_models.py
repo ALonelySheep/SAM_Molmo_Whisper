@@ -24,12 +24,6 @@ def load_sam(model_name='facebook/sam2.1-hiera-large', device='cpu'):
     sam_predictor = SAM2ImagePredictor.from_pretrained(model_name)
     return sam_predictor
 
-def load_sam_video(model_name='facebook/sam2.1-hiera-tiny', device='cpu'):
-    sam_predictor = SAM2VideoPredictor.from_pretrained(
-        model_name
-    )
-    return sam_predictor
-
 def load_molmo(model_name='allenai/MolmoE-1B-0924', device='cpu'):
     """
     Load Molmo model and processor.
@@ -50,16 +44,6 @@ def load_molmo(model_name='allenai/MolmoE-1B-0924', device='cpu'):
     )
     return processor, molmo_model
 
-def load_whisper(model_name='openai/whisper-small', device='cpu'):
-    """
-    Load Whisper model.
-    """
-    transcriber = pipeline(
-        'automatic-speech-recognition',
-        model=model_name,
-        device=device
-    )
-    return transcriber
 
 def load_clip():
     """

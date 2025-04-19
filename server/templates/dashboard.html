@@ -103,6 +103,15 @@
             background-color: #e3f2fd;
         }
 
+        .raw-html {
+            white-space: pre-wrap;
+            font-family: monospace;
+            overflow-x: auto;
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 3px;
+        }
+
         .card-footer {
             display: flex;
             justify-content: space-between;
@@ -165,6 +174,16 @@
     </div>
 
     <script>
+        // Helper function to escape HTML for safe display
+        function escapeHTML(str) {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         // Fetch data from the server
         function fetchData() {
             fetch('/data')
@@ -209,11 +228,16 @@
 
                 let responseHtml = '';
                 if (request.status === 'completed') {
+                    // Check if response contains raw HTML
+                    const isRawHtml = request.result.raw_html === true;
+                    const responseText = isRawHtml ?
+                        `<pre class="raw-html">${escapeHTML(request.result.response_text)}</pre>` :
+                        request.result.response_text;
+
                     responseHtml = `
                         <div class="card-response">
-                            ${request.result.response_text}
+                            ${responseText}
                             <div class="card-footer">
-                                <span>Confidence: ${request.result.confidence}</span>
                                 <span>Processing time: ${request.result.processing_time}s</span>
                             </div>
                         </div>

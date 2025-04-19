@@ -6,3 +6,11 @@ experiments/video_frames
 experiments/video_out
 temp/
 outputs/
+
+
+server/uploads/*.png
+
+!server/uploads/
+
+# Ensure the .gitkeep file is tracked
+!server/uploads/.gitkeep
